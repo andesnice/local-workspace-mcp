@@ -26,7 +26,10 @@
 
 ## 怎麼安裝？
 
-Windows 使用者可參考 [WSL2 文件模式設定與驗證範圍](docs/WINDOWS-WSL.md)；這不代表原生 Windows 支援。
+Windows：下載並解壓縮後雙擊 **`Install-Windows.cmd`**，以 WSL2 安裝文件模式；
+接著執行 **`Connect-ChatGPT-Windows.cmd`** 設定私人通道，日常用 **`Start-Windows.cmd`**。
+首次需要先完成 Ubuntu／WSL 初始化，缺少時安裝器會顯示指令；可能需要管理員權限與重新開機。
+詳見 [Windows 安裝、更新／修復與驗證範圍](docs/WINDOWS-WSL.md)。這不代表原生 Windows 支援。
 
 1. 下載上方最新版原始碼，放到準備長期保留的位置。
 2. 準備 Python、uv 等[必備工具](docs/README.zh-TW.md)，文件工作還需要運作中的 Docker。
