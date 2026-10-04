@@ -1,0 +1,29 @@
+name: Windows launcher
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  launcher:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse Windows PowerShell scripts
+        shell: powershell
+        run: |
+          foreach ($path in @('scripts/windows.ps1', 'tests/windows_launcher.ps1')) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD $path), [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count) { throw ($errors | Out-String) }
+          }
+      - name: Exercise launcher with fake WSL (not WSL end-to-end)
+        shell: powershell
+        run: ./tests/windows_launcher.ps1
+      - name: Parse launcher with PowerShell 7
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD 'scripts/windows.ps1'), [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count) { throw ($errors | Out-String) }

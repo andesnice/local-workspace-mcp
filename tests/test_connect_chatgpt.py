@@ -154,17 +154,41 @@ def test_second_double_click_reuses_connection_without_key_prompt(tmp_path, monk
     client = tmp_path / "tunnel-client"
     client.write_text("")
     client.chmod(0o700)
-    save_connection(state, client, TUNNEL_ID)
+    runtime = tmp_path / "tunnel-client-runtime"
+    runtime.write_text("")
+    runtime.chmod(0o700)
+    save_connection(state, client, TUNNEL_ID, runtime)
     calls = []
 
     def fake_run(command, **_kwargs):
         calls.append(command)
         if "init" in command:
             Path(command[command.index("--profile-dir") + 1], "local-workspace.yaml").write_text(SAMPLE)
-        return subprocess.CompletedProcess(command, 0)
+        return subprocess.CompletedProcess(command, 0, stdout="0.0.15 flavor=runtime")
 
     monkeypatch.setattr(subprocess, "run", fake_run)
     monkeypatch.setattr("builtins.input", lambda _prompt: pytest.fail("unexpected interactive prompt"))
     assert main(["--interactive", "--run", "--state", str(state)]) == 0
-    assert calls[-1][1] == "run"
+    assert calls[-1][:2] == [str(runtime), "run"]
     assert key.read_text() == "sk-existing-private-key\n"
+
+
+@pytest.mark.parametrize("version", ["0.0.15 flavor=full", "0.0.15 flavor=runtime-cloudflared", ""])
+def test_reject_full_client_for_running_connection(tmp_path, monkeypatch, version):
+    client = tmp_path / "tunnel-client"
+    client.touch()
+    client.chmod(0o700)
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(
+        a[0], 0, stdout=version))
+    with pytest.raises(ValueError, match="tunnel-client-runtime"):
+        CONNECT["resolve_runtime"](str(client), client, False)
+
+
+def test_runtime_discovery_beside_setup_client(tmp_path, monkeypatch):
+    client = tmp_path / "tunnel-client"
+    runtime = tmp_path / "tunnel-client-runtime"
+    runtime.touch()
+    runtime.chmod(0o700)
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(
+        a[0], 0, stdout="0.0.15 git sha: example flavor=runtime"))
+    assert CONNECT["resolve_runtime"](None, client, False) == runtime

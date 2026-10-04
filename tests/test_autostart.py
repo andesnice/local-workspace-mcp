@@ -52,3 +52,22 @@ def test_launcher_missing_volume_and_exact_arguments(tmp_path):
 def test_reject_invalid_service_names(tmp_path, name):
     with pytest.raises(ValueError):
         autostart.service_files(tmp_path / "client", tmp_path / "config", tmp_path, name)
+
+
+@pytest.mark.parametrize("version", ["0.0.15 flavor=full", "0.0.15 flavor=runtime-cloudflared", ""])
+def test_autostart_rejects_non_runtime_before_service_writes(tmp_path, monkeypatch, version):
+    binary = tmp_path / "client"
+    binary.touch()
+    binary.chmod(0o700)
+    config = tmp_path / "config.json"
+    config.write_text("{}")
+    monkeypatch.setattr(autostart.sys, "platform", "darwin")
+    monkeypatch.setattr(autostart.sys, "argv", ["install", "--tunnel-client", str(binary),
+                                              "--config", str(config)])
+    monkeypatch.setattr(autostart.shutil, "which", lambda _: None)
+    monkeypatch.setattr(autostart.subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(
+        a[0], 0, stdout=version))
+    monkeypatch.setattr(autostart, "service_files", lambda *a, **k: pytest.fail("service write reached"))
+    with pytest.raises(SystemExit) as error:
+        autostart.main()
+    assert error.value.code == 2

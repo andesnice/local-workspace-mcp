@@ -11,11 +11,20 @@ restarting the tunnel. Native ChatGPT App conversation acceptance remains pendin
 
 After setup, see the [everyday user guide](USAGE.en.md) for phones, host availability and output access.
 
+## Use the runtime for long-lived connections
+
+Download both official v0.0.15 or newer executables: `tunnel-client` for `init`/`doctor`,
+and `tunnel-client-runtime` for foreground and login startup. Keep them side by side;
+the wizard discovers the runtime there, or accepts `--runtime-client /absolute/path/tunnel-client-runtime`.
+The narrow runtime does not contain the optional Codex assistant, plugin manager or admin UI.
+It retains the MCP tunnel and health endpoints. Full CLI builds can launch an extra Codex process;
+the startup helpers now reject them as the running binary. See [the fix and migration notes](TUNNEL-LIFECYCLE.md).
+
 ## Short setup path
 
 1. Install the local tools with `Install.command` and keep the private state directory you selected.
-2. Create a tunnel in [OpenAI Platform](https://platform.openai.com/settings/organization/tunnels), and a runtime key restricted to **Tunnels Read + Use** in [API keys](https://platform.openai.com/settings/organization/api-keys). Download the matching [official tunnel-client](https://github.com/openai/tunnel-client/releases) and verify its SHA256 checksum.
-3. On Mac, double-click **`Connect ChatGPT.command`**. On Linux, run `python3 scripts/connect_chatgpt.py --interactive --run`. Enter the private state path, official client path, and tunnel ID. Paste the key at the hidden prompt and press Enter; no visible characters is normal. The wizard creates the private profile, runs `doctor`, then keeps the tunnel running. Leave that window open while using ChatGPT.
+2. Create a tunnel in [OpenAI Platform](https://platform.openai.com/settings/organization/tunnels), and a runtime key restricted to **Tunnels Read + Use** in [API keys](https://platform.openai.com/settings/organization/api-keys). Download the matching [official tunnel-client and tunnel-client-runtime](https://github.com/openai/tunnel-client/releases) and verify its SHA256 checksum.
+3. On Mac, double-click **`Connect ChatGPT.command`**. On Linux, run `python3 scripts/connect_chatgpt.py --interactive --run`. Enter the private state path, official client path, and tunnel ID. Paste the key **once** at the hidden prompt and press Enter; no visible characters is normal. Repeated pastes are rejected before writing the key/configuration. The wizard creates the private profile, runs `doctor`, then keeps the tunnel running. Leave that window open while using ChatGPT.
 4. Connect the plugin in ChatGPT and make a real tool call as described below.
 
 The wizard cannot create your OpenAI account tunnel/key or approve the ChatGPT plugin for you. It never overwrites an existing key. The detailed manual commands below remain available for troubleshooting.
@@ -31,7 +40,8 @@ To restart after closing the window or rebooting, use the same `Connect ChatGPT.
    associated with the ChatGPT workspace you will use. Create a restricted runtime API key with **Tunnels Read + Use**.
    Account availability and charges must be checked against current official terms. No shared project key is provided.
 3. Obtain the matching binary from [official tunnel-client releases](https://github.com/openai/tunnel-client/releases)
-   and verify its checksum. Tested: v0.0.14 on macOS arm64. Store the runtime key in a private file with mode `0600`,
+   and verify both archives against SHA256SUMS.txt. Use v0.0.15 or newer setup/runtime binaries.
+   Runtime v0.0.15 startup and health checks passed on macOS arm64; the older v0.0.14 ChatGPT conversation result is historical. Store the runtime key in a private file with mode `0600`,
    outside shared files and Git. Never paste it into chat or pass its value as a command argument.
 4. Generate a STDIO profile:
 
@@ -48,7 +58,7 @@ Use mode `0600` for the profile, then run:
 
 ```sh
 tunnel-client doctor --config /absolute/private-state/tunnel-profiles/local-workspace.yaml
-tunnel-client run --config /absolute/private-state/tunnel-profiles/local-workspace.yaml
+tunnel-client-runtime run --config /absolute/private-state/tunnel-profiles/local-workspace.yaml
 ```
 
 5. In ChatGPT, enable developer mode under Security/login. Go to Plugins → Create app, enter
@@ -70,7 +80,7 @@ With Xcode Command Line Tools installed, run from the project:
 
 ```sh
 python3 scripts/install_macos_autostart.py \
-  --tunnel-client /absolute/path/tunnel-client \
+  --tunnel-client /absolute/path/tunnel-client-runtime \
   --config /absolute/private-state/tunnel-profiles/local-workspace.yaml \
   --name 'ChatGPT Local Workspace MCP'
 ```

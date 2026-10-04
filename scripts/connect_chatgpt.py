@@ -77,6 +77,20 @@ def resolve_client(value: str | None, interactive: bool) -> Path:
     return path
 
 
+def resolve_runtime(value: str | None, client: Path, interactive: bool) -> Path:
+    """Long-lived connections use the official narrow runtime, never the full CLI."""
+    suffix = ".exe" if client.suffix == ".exe" else ""
+    candidate = value or str(client.with_name("tunnel-client-runtime" + suffix))
+    if not Path(candidate).expanduser().is_file() and interactive:
+        candidate = input("官方 tunnel-client-runtime 執行檔路徑：").strip()
+    runtime = resolve_client(candidate, False)
+    result = subprocess.run([str(runtime), "--version"], capture_output=True, text=True,
+                            check=True, timeout=10)
+    if "flavor=runtime" not in result.stdout.split():
+        raise ValueError("請使用官方 tunnel-client-runtime；完整 tunnel-client 僅用於設定與診斷。")
+    return runtime
+
+
 def load_connection(state: Path) -> dict[str, str]:
     receipt = state / "connection.json"
     if not receipt.exists():
@@ -89,17 +103,26 @@ def load_connection(state: Path) -> dict[str, str]:
     tunnel_id = value.get("tunnel_id")
     if not isinstance(client, str) or not isinstance(tunnel_id, str) or not TUNNEL_ID.fullmatch(tunnel_id):
         raise ValueError(f"連線紀錄格式不正確：{receipt}")
-    return {"tunnel_client": client, "tunnel_id": tunnel_id}
+    result = {"tunnel_client": client, "tunnel_id": tunnel_id}
+    runtime = value.get("runtime_client")
+    if runtime is not None:
+        if not isinstance(runtime, str):
+            raise ValueError(f"連線紀錄的 runtime_client 格式不正確：{receipt}")
+        result["runtime_client"] = runtime
+    return result
 
 
-def save_connection(state: Path, client: Path, tunnel_id: str) -> None:
+def save_connection(state: Path, client: Path, tunnel_id: str, runtime: Path | None = None) -> None:
     receipt = state / "connection.json"
     if receipt.exists():
         require_private_file(receipt)
     descriptor, temporary = tempfile.mkstemp(prefix="connection-", dir=state)
     try:
         with os.fdopen(descriptor, "w") as stream:
-            json.dump({"tunnel_client": str(client), "tunnel_id": tunnel_id}, stream)
+            data = {"tunnel_client": str(client), "tunnel_id": tunnel_id}
+            if runtime is not None:
+                data["runtime_client"] = str(runtime)
+            json.dump(data, stream)
             stream.write("\n")
         os.replace(temporary, receipt)
     finally:
@@ -176,6 +199,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--interactive", action="store_true", help="Prompt for paths and tunnel ID")
     parser.add_argument("--state", type=Path, help="Private state directory used during installation")
     parser.add_argument("--tunnel-client", help="Path to the official tunnel-client executable")
+    parser.add_argument("--runtime-client", help="Official tunnel-client-runtime for the running connection")
     parser.add_argument("--tunnel-id", help="ID created in OpenAI Platform (not a secret)")
     parser.add_argument("--run", action="store_true", help="Run the tunnel after a successful doctor check")
     args = parser.parse_args(argv)
@@ -196,6 +220,9 @@ def main(argv: list[str] | None = None) -> int:
         elif args.interactive:
             print("找到上次的通道 ID 與用戶端路徑；金鑰仍只存於私有檔案。")
         client = resolve_client(args.tunnel_client or previous.get("tunnel_client"), args.interactive)
+        runtime = resolve_runtime(
+            args.runtime_client or previous.get("runtime_client"), client, args.interactive
+        )
         tunnel_id = args.tunnel_id or previous.get("tunnel_id")
         if args.interactive and tunnel_id is None:
             tunnel_id = input("通道 ID（tunnel_...）：").strip()
@@ -210,13 +237,13 @@ def main(argv: list[str] | None = None) -> int:
             key = getpass.getpass("Runtime key（隱藏輸入）：").strip()
             validate_runtime_key(key)
         config = configure(state, client, tunnel_id, key)
-        save_connection(state, client, tunnel_id)
+        save_connection(state, client, tunnel_id, runtime)
         print("官方診斷通過。使用 ChatGPT 時請保持這個指令運作：")
-        print("  " + shlex.join([str(client), "run", "--config", str(config)]))
+        print("  " + shlex.join([str(runtime), "run", "--config", str(config)]))
         print("接著在 ChatGPT 建立並連接外掛，依 docs/CHATGPT.md 做真實工具測試。")
         if args.run:
             print("正在啟動通道；使用 ChatGPT 時請保持此視窗開啟。")
-            subprocess.run([str(client), "run", "--config", str(config)], check=True)
+            subprocess.run([str(runtime), "run", "--config", str(config)], check=True)
         return 0
     except (ValueError, OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
         print(f"連線設定未完成：{error}", file=sys.stderr)

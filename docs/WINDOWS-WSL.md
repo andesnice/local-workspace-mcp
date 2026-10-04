@@ -2,8 +2,8 @@
 
 This runs the Linux server inside WSL2; it does **not** add native Windows support.
 Keep the repository, Python environment, private state and official Linux
-tunnel-client in the Linux filesystem. A dedicated document workspace can live
-under `/mnt/c/Users/YOUR_WINDOWS_USER/Documents/LocalWorkspace`.
+tunnel-client and tunnel-client-runtime in the Linux filesystem. A dedicated
+document workspace can live under `/mnt/c/Users/YOUR_WINDOWS_USER/Documents/LocalWorkspace`.
 
 ## Download, extract, double-click
 
@@ -49,7 +49,7 @@ different distro/user/state, run from PowerShell:
 .\Connect-ChatGPT-Windows.cmd -Distro Ubuntu -LinuxUser YOUR_LINUX_USER
 .\Start-Windows.cmd -Distro Ubuntu -LinuxUser YOUR_LINUX_USER
 # Read-only prerequisite and existing-install inspection:
-powershell -NoProfile -File .\scripts\windows.ps1 -Action Check -Distro Ubuntu -LinuxUser YOUR_LINUX_USER
+powershell -NoProfile -File .\scripts\windows_download.ps1 -Action Check -Distro Ubuntu -LinuxUser YOUR_LINUX_USER
 ```
 
 Pass `-State /absolute/linux/private-state` consistently if using a custom state.
@@ -64,8 +64,10 @@ workspace differs from a supplied `-Workspace`, it refuses instead of moving dat
 - Git, Python 3.12+, uv, and a working Docker CLI/daemon inside that distribution.
   Verify `docker info` as the same Linux user that will run MCP. Docker Desktop
   WSL integration and Docker inside WSL are alternatives; choose one working setup.
-- The official Linux tunnel-client matching `uname -m`, downloaded from
-  https://github.com/openai/tunnel-client/releases and verified against its SHA256.
+- Both official Linux v0.0.15 or newer binaries matching `uname -m`: `tunnel-client`
+  for setup/diagnostics and `tunnel-client-runtime` for the running connection.
+  Download them from https://github.com/openai/tunnel-client/releases and verify
+  the archives against that release's SHA256SUMS.txt. Keep both binaries together.
 - OpenAI tunnel/workspace access and a key restricted to Tunnels Read + Use.
 
 Use a regular Linux user where possible. The existing installation tested below
@@ -85,7 +87,8 @@ python3 scripts/install.py \
 
 .venv/bin/python scripts/connect_chatgpt.py --interactive --run \
   --state /home/YOUR_LINUX_USER/.local/state/local-workspace-mcp \
-  --tunnel-client /home/YOUR_LINUX_USER/tools/tunnel-client/tunnel-client
+  --tunnel-client /home/YOUR_LINUX_USER/tools/tunnel-client/tunnel-client \
+  --runtime-client /home/YOUR_LINUX_USER/tools/tunnel-client/tunnel-client-runtime
 ```
 
 Keep private state on the Linux filesystem, outside the document workspace, so
@@ -125,6 +128,64 @@ Do not shut down all WSL distributions for this test. Closing the terminal,
 shutting down WSL, sleeping or turning off the PC can disconnect ChatGPT.
 This recipe does not install a Windows login task or promise reboot persistence.
 
+## Windows install and connect launchers (experimental)
+
+`Install.cmd` and `Connect ChatGPT.cmd` provide Windows entry points for an
+**existing Linux checkout**. They use the same `scripts/install.py` and
+`scripts/connect_chatgpt.py` described above, including the runtime-only connection
+and hidden key prompt. They do not install WSL, clone another version of the
+server, download tunnel binaries, register clients, or configure login startup.
+The `.cmd` wrappers use Windows PowerShell 5.1 with process-only `RemoteSigned`;
+company execution policies still apply.
+
+1. Complete the prerequisites above and clone this repository inside your
+   non-root WSL user's Linux filesystem, for example `~/local-workspace-mcp`.
+   Use a checkout containing `scripts/windows_wsl.py`.
+2. On Windows, take `Install.cmd`, `Connect ChatGPT.cmd` and
+   `scripts/windows.ps1` from the **same revision**, preserving the `scripts`
+   subdirectory. They can be kept in a regular Windows folder. The repository,
+   virtual environment, private state and tunnel binaries remain inside Linux.
+3. In PowerShell in that Windows folder, run the following, replacing the distro
+   with its actual name from `wsl --list --verbose`:
+
+   ```powershell
+   .\Install.cmd -Distro Ubuntu-24.04 -Repository "~/local-workspace-mcp" -Workspace "C:\MCP Documents"
+   & '.\Connect ChatGPT.cmd'
+   ```
+
+The default workspace is `~/LocalWorkspace` and the default state directory is
+`~/.local/state/local-workspace-mcp-wsl`. Supply `-State` for a different dedicated
+Linux directory under your WSL home. State, workspace and source must not overlap.
+Windows workspace paths are converted with `wslpath`; Linux absolute and `~/`
+workspace paths are accepted too. Paths with spaces and Unicode are forwarded as
+arguments. Quotes and line breaks in paths are rejected.
+
+After a successful installation, only the distro, repository, state and workspace
+choices are saved in `%LOCALAPPDATA%\LocalWorkspaceMCPWSL\settings.json`.
+Reconnection reuses these choices; full permissions are never restored implicitly
+for a new installation. With multiple distros and no saved selection, specify
+`-Distro`. This settings file is separate from the community Windows integration's
+settings; there is no automatic migration of existing private installations.
+
+Documents mode remains the default and requires working Docker inside WSL. The
+optional full mode requires `-Mode full -AcceptFullPermissions` on **each install**;
+use a separate state and workspace when trying it. Add `-SkipWorker` only with
+explicitly accepted full mode. Full mode runs with the WSL user's permissions,
+including accessible Windows mounts; it is not confined to the workspace.
+
+For a GitHub ZIP blocked by Windows, review the source and unblock the downloaded
+ZIP through Properties before extracting again; do not weaken the global execution
+policy. Launch failures return a nonzero exit code and leave saved Windows settings
+unchanged. Keep the connection terminal open and stop with Ctrl+C. Use the health
+and real ChatGPT checks above after connecting.
+
+These entry points are adapted from the MIT-licensed
+[community Windows/WSL integration](https://github.com/oscar2012-dot/local-workspace-mcp-windows).
+Automated bridge tests use mocked subprocesses; Windows CI uses a fake `wsl.exe`
+to test argument forwarding, saved settings and failure handling. Neither is a
+clean Windows/WSL installation, Docker document workflow or ChatGPT end-to-end test.
+Those checks remain required, including restart behavior and both installation modes.
+
 ## Optional Windows STDIO client
 
 Windows clients can launch the Linux MCP independently of the ChatGPT tunnel.
@@ -141,6 +202,12 @@ than replacing the whole configuration file. Merely installing Docker Desktop
 on Windows does not verify Docker access inside Ubuntu.
 
 ## Validation scope
+
+The contributor reported the observations below for commit `ba42837`, before
+the runtime-only change. They are historical evidence, not a clean-install or
+WSL validation of the current runtime recipe. Repeat the health/control-plane
+and ChatGPT checks above after migrating to `tunnel-client-runtime`; see
+[the migration notes](TUNNEL-LIFECYCLE.md).
 
 On 2026-10-04 an existing Windows + WSL Ubuntu document-mode installation was
 updated to `ba42837`. A Windows MCP client launched `wsl.exe`, discovered 14 tools

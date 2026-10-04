@@ -11,6 +11,9 @@
     "sharp": "0.35.4",
     "exceljs": {
       "uuid": "11.1.1"
+    },
+    "md-to-pdf": {
+      "chokidar": "4.0.3"
     }
   }
 }

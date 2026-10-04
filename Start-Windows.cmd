@@ -1,6 +1,6 @@
 @echo off
 setlocal
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\windows.ps1" -Action Start %*
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\windows_download.ps1" -Action Start %*
 set "result=%ERRORLEVEL%"
 echo.
 pause

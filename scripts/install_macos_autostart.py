@@ -46,7 +46,8 @@ def service_files(binary, config, home, name=DEFAULT_NAME, guard=None):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--tunnel-client", type=Path, required=True)
+    parser.add_argument("--tunnel-client", type=Path, required=True,
+                        help="Official tunnel-client-runtime executable (not the full setup CLI)")
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--name", default=DEFAULT_NAME, help="Human-readable login service name")
     args = parser.parse_args()
@@ -61,7 +62,10 @@ def main():
         check = subprocess.run([guard], capture_output=True, text=True, check=True)
         if "STATUS=OK" not in check.stdout:
             parser.error("Storage Guard did not report STATUS=OK.")
-    subprocess.run([str(binary), "doctor", "--config", str(config)], check=True)
+    version = subprocess.run([str(binary), "--version"], capture_output=True, text=True,
+                             check=True, timeout=10)
+    if "flavor=runtime" not in version.stdout.split():
+        parser.error("Use official tunnel-client-runtime for autostart; the full CLI can launch Codex.")
     app, info, plist, data = service_files(binary, config, Path.home(), args.name, guard)
     for target in (app, plist):
         if target.exists() or target.is_symlink():

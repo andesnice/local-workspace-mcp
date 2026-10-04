@@ -27,8 +27,11 @@ Requires Python 3.12+, [uv](https://docs.astral.sh/uv/), Git; full mode also req
 Docker is required for isolated document jobs. Existing Chrome/Chromium is required for `host_write_pdf`;
 no browser is downloaded automatically.
 
+For Windows, see the [WSL2 document-mode guide and validation limits](WINDOWS-WSL.md).
+
 **Native Windows is not currently supported or validated.** The code relies on POSIX-only APIs such as
-`fcntl`, `os.getuid`, `os.O_NOFOLLOW` and `dir_fd`, and there is no Windows CI job or native Windows installer.
+`fcntl`, `os.getuid`, `os.O_NOFOLLOW` and `dir_fd`, and there is no native Windows server or installer. The experimental `.cmd` launchers target WSL2;
+the Windows CI job only validates launcher behavior with a fake WSL executable.
 The installation instructions below target macOS/Linux.
 
 ```sh
